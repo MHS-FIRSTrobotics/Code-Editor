@@ -8,4 +8,7 @@ and such, or is encoded directly in the URL of the page you are visiting (warnin
 - c: this is your Base-64 encoded JSON'ed code, don't change the automatically generated code without the proper tools
 - url: this is the URL for the code you want to see, served from a GET request to the URL (this is ignored if c is specified)
 
+## Usage:
+Use like any other code editor, except keep in mind that Ctrl-M (Command-M on Mac) creates the URL for your own purposes.
+
 Feel free to play with this code, or visit https://mustangrobotics.club/editor.html for an example!
