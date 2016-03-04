@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html ng-app="editor">
+<head>
+    <title>Code Editor</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
+          integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <style type="text/css" media="screen">
+        #editor {
+            font-family: 'Source Code Pro', monospace;
+            font-size: 16px;
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        #sharing-url {
+            word-break: break-all;
+        }
+    </style>
+    <script type="text/javascript">
+        WebFontConfig = {
+            google: {families: ['Source+Code+Pro::latin']}
+        };
+        (function () {
+            var wf = document.createElement('script');
+            wf.src = 'https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
+            wf.type = 'text/javascript';
+            wf.async = 'true';
+            var s = document.getElementsByTagName('script')[0];
+            s.parentNode.insertBefore(wf, s);
+        })();
+    </script>
+</head>
+<body >
+<div id="editor-container" class="container-fluid" ng-controller="EditorController">
+    <div id="editor" ui-ace="{theme:'monokai',
+              mode: 'java', onLoad: aceLoaded}">
+        <div id="loading-screen" class="text-center">
+            <h1>Loading</h1>
+            <p>Please wait...</p>
+            <i class="fa fa-circle-o-notch fa-4x fa-spin" style="color: black;"></i>
+        </div>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade" id="urlModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                            aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="myModalLabel">Share Code</h4>
+                </div>
+                <div class="modal-body">
+                    Copy this url: <br><a id='sharing-url' href=''></a>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="script-container">
+
+    <script src="assets/js/lib/jquery.js"></script>
+    <script src="assets/js/lib/bootstrap.bak/bootstrap.min.js" crossorigin="anonymous"></script>
+    <script src="assets/js/lib/angular.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ext-spellcheck.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ext-searchbox.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ext-beautify.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/mode-java.js"></script>
+    <script src="assets/js/lib/ui.ace.angular.js"></script>
+    <script src="assets/js/lib/lz-string.js"></script>
+    <script>
+        angular.module('editor', ['ui.ace'])
+                .controller('EditorController', ['$scope', function ($scope) {
+                    $scope.url = "https://mustangrobotics.club/editor.html";
+
+
+
+                    $scope.aceLoaded = function (_editor) {
+                        var data = getParameterByName('c');
+                        console.log(data);
+                        if (data == null) {
+                            var url = getParameterByName('url');
+                            if (url != null) {
+                                $.get(url, function(data) {
+                                    if (data != null) {
+                                        _editor.setValue(data);
+                                        _editor.clearSelection();
+                                    }
+                                });
+                            }
+
+                            _editor.setValue('public class Main {\n\tpublic static void main(String... args) {\n\t\tSystem.out.println("Hello, World! I may not be ready to see you, but #imaginethis.");\n\t}\n}');
+                        } else {
+                            var json;
+                            try {
+                                json = atob(data);
+                            } catch(e) {
+                                console.log(e);
+                                _editor.setValue("// Corrupted Data! Cannot continue. :(");
+                            }
+                            if (json == null || json == '') {
+                                _editor.setValue('');
+                            } else {
+                                console.log(data);
+                                var code = json;
+                                if (code != null) {
+                                    console.log(code);
+                                    var codeData = angular.fromJson(code);
+                                    _editor.setValue(codeData);
+                                } else {
+                                    console.log("Attempting to parse failed");
+                                    _editor.setValue("// Failed to load the data. Sorry :(")
+                                }
+                            }
+                        }
+                        _editor.clearSelection();
+
+                        _editor.commands.addCommand({
+                            name: 'save',
+                            bindKey: {win: 'Ctrl-M', mac: 'Command-M'},
+                            exec: function (editor) {
+                                $scope.saveCode(editor);
+                            },
+                            readOnly: true // false if this command should not apply in readOnly mode
+                        });
+                    };
+
+
+                    $scope.saveCode = function (_editor) {
+                        var code = _editor.getValue();
+                        code = code.replace(/[^@\\\{}\[\]\.,:!#\$\^%\*\(\);"'<>\+=\-_\/\w\s]/gi, '');
+
+                        var data = "https://mustangrobotics.club/editor.html?c=" + btoa(angular.toJson(code));
+                        console.log(data);
+                        $scope.url = data;
+                        var modal = $('#urlModal');
+                        var url = $('#sharing-url');
+                        url.attr('href', data);
+                        url.text(data);
+                        modal.modal('show');
+                    }
+                }]);
+
+        function getParameterByName(name, url) {
+            if (!url) url = window.location.href;
+            name = name.replace(/[\[\]]/g, "\\$&");
+            var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+                    results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, " "));
+        }
+    </script>
+    <script src="assets/js/lib/flowtype.js"></script>
+    <script>
+        $('#editor').flowtype({
+            minFont: 10,
+            maxFont: 36,
+            fontRatio: 85
+        });
+    </script>
+</div>
+</body>
+</html>
