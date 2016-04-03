@@ -5,6 +5,7 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
           integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/tether/1.2.0/js/tether.min.js'></script>
     <style type="text/css" media="screen">
         #editor {
             font-family: 'Source Code Pro', monospace;
@@ -20,21 +21,9 @@
             word-break: break-all;
         }
     </style>
-    <script type="text/javascript">
-        WebFontConfig = {
-            google: {families: ['Source+Code+Pro::latin']}
-        };
-        (function () {
-            var wf = document.createElement('script');
-            wf.src = 'https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
-            wf.type = 'text/javascript';
-            wf.async = 'true';
-            var s = document.getElementsByTagName('script')[0];
-            s.parentNode.insertBefore(wf, s);
-        })();
-    </script>
+
 </head>
-<body >
+<body>
 <div id="editor-container" class="container-fluid" ng-controller="EditorController">
     <div id="editor" ui-ace="{theme:'monokai',
               mode: 'java', onLoad: aceLoaded}">
@@ -67,6 +56,7 @@
 <div id="script-container">
 
     <script src="assets/js/lib/jquery.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/tether/1.2.0/js/tether.min.js'></script>
     <script src="assets/js/lib/bootstrap.bak/bootstrap.min.js" crossorigin="anonymous"></script>
     <script src="assets/js/lib/angular.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ace.js"></script>
@@ -77,32 +67,72 @@
     <script src="assets/js/lib/ui.ace.angular.js"></script>
     <script src="assets/js/lib/lz-string.js"></script>
     <script>
+        if (!String.prototype.includes) {
+            String.prototype.includes = function (search, start) {
+                'use strict';
+                if (typeof start !== 'number') {
+                    start = 0;
+                }
+
+                if (start + search.length > this.length) {
+                    return false;
+                } else {
+                    return this.indexOf(search, start) !== -1;
+                }
+            };
+        }
+    </script>
+    <script>
         angular.module('editor', ['ui.ace'])
                 .controller('EditorController', ['$scope', function ($scope) {
                     $scope.url = "https://mustangrobotics.club/editor.html";
 
+                    function configureEditorLang(url, _editor) {
+                        var ext = url.substr(url.lastIndexOf('.') + 1);
+                        if (ext == "js") {
+                            _editor.getSession().setMode("ace/mode/javascript");
+                        } else if (ext == "md") {
+                            _editor.getSession().setMode("ace/mode/markdown");
+                        } else if (ext == "java") {
+                            _editor.getSession().setMode("ace/mode/java");
+                        } else if (ext == "groovy" || ext == "gradle") {
+                            _editor.getSession().setMode("ace/mode/groovy");
+                        }
+                    }
 
+                    function getFromRawSource(url, _editor) {
+                        if (url == null) {
+                            console.error("Cowardly refusing to attempt to fetch from self!");
+                            return;
+                        }
+                        console.log("Getting " + url);
+                        $.get(url, function (data) {
+                            if (data != null) {
+                                _editor.setValue(data);
+                                _editor.clearSelection();
+                            } else {
+                                _editor.setValue('// An error occurred :(');
+                                _editor.clearSelection();
+                            }
+                        }).fail(function () {
+                            _editor.setValue('// An error occurred :(\n' +
+                                    "\t// Just in case you want to know I was trying to fetch:\n" +
+                                    "\t// '" + url + "'");
+                            _editor.clearSelection();
+
+                        });
+                    }
 
                     $scope.aceLoaded = function (_editor) {
                         var data = getParameterByName('c');
-                        console.log(data);
-                        if (data == null) {
-                            var url = getParameterByName('url');
-                            if (url != null) {
-                                $.get(url, function(data) {
-                                    if (data != null) {
-                                        _editor.setValue(data);
-                                        _editor.clearSelection();
-                                    }
-                                });
-                            }
-
-                            _editor.setValue('public class Main {\n\tpublic static void main(String... args) {\n\t\tSystem.out.println("Hello, World! I may not be ready to see you, but #imaginethis.");\n\t}\n}');
-                        } else {
+                        var gitHub = getParameterByName('gh');
+                        var gitHubBranch = getParameterByName('br');
+                        //console.log(data);
+                        function loadData() {
                             var json;
                             try {
                                 json = atob(data);
-                            } catch(e) {
+                            } catch (e) {
                                 console.log(e);
                                 _editor.setValue("// Corrupted Data! Cannot continue. :(");
                             }
@@ -117,9 +147,73 @@
                                     _editor.setValue(codeData);
                                 } else {
                                     console.log("Attempting to parse failed");
-                                    _editor.setValue("// Failed to load the data. Sorry :(")
+                                    _editor.setValue("// Failed to load the data. Sorry :(\n" + +"// Just in case you want to know I was trying to fetch '" + url + "'");
                                 }
                             }
+                        }
+
+                        function configureEditorToDefaults() {
+                            _editor.setValue(
+                                    'public class Main {\n' +
+                                    '\tpublic static void main(String... args) {\n' +
+                                    '\t\tSystem.out.println("Hello, World! I may not be ready to see you, but #imaginethis.");\n' +
+                                    '\t}\n}');
+                        }
+
+                        function getBranch() {
+                            if (gitHub.includes('!')) {
+                                gitHubBranch = gitHub.substr(gitHub.lastIndexOf('!') + 1);
+                                if (gitHubBranch.includes('>')) {
+                                    gitHubBranch = gitHubBranch.substr(0, gitHubBranch.lastIndexOf('>'));
+                                }
+
+                                gitHub = gitHub.replace('!' + gitHubBranch, "");
+
+                            } else {
+                                console.log("No branch was specified! Defaulting to 'master'");
+                                gitHubBranch = 'master';
+                            }
+                        }
+
+                        function resolvePath() {
+                            if (gitHub.includes('>')) {
+                                path = gitHub.substr(gitHub.lastIndexOf('>') + 1);
+                                gitHub = gitHub.replace('>' + path, '');
+                            }
+
+                            if (path == null || path == "") {
+                                path = 'README.md';
+                            }
+                        }
+
+                        if (data == null) {
+                            var url = getParameterByName('url');
+                            if (url != null) {
+                                getFromRawSource(url, _editor);
+                                configureEditorLang(url, _editor);
+                            } else if (gitHub != null || gitHubBranch != null) {
+                                if (gitHub == null && gitHubBranch != null) {
+                                    _editor.setValue("// A Git branch was specified, but no repo. I also need the repo! Thanks ;)")
+                                } else if (gitHub != null && gitHubBranch == null) {
+                                    gitHub = gitHub.replace('%3E', '>'); // Resolve the html escape sequence to the proper symbol
+                                    console.log(gitHub);
+                                    getBranch();
+                                }
+
+                                if (gitHub != null && gitHubBranch != null) {
+                                    var path = getParameterByName('gp');
+                                    if (path == null) {
+                                        resolvePath();
+                                    }
+                                    // url = 'https://raw.githubusercontent.com/' + gitHub + "/" + gitHubBranch + "/" + path
+                                    getFromRawSource('https://raw.githubusercontent.com/' + gitHub + "/" + gitHubBranch + "/" + path, _editor);
+                                    configureEditorLang(path, _editor);
+                                }
+                            } else {
+                                configureEditorToDefaults();
+                            }
+                        } else {
+                            loadData();
                         }
                         _editor.clearSelection();
 
@@ -132,7 +226,6 @@
                             readOnly: true // false if this command should not apply in readOnly mode
                         });
                     };
-
 
                     $scope.saveCode = function (_editor) {
                         var code = _editor.getValue();
@@ -166,6 +259,19 @@
             maxFont: 36,
             fontRatio: 85
         });
+    </script>
+    <script type="text/javascript">
+        WebFontConfig = {
+            google: {families: ['Source+Code+Pro::latin']}
+        };
+        (function () {
+            var wf = document.createElement('script');
+            wf.src = 'https://ajax.googleapis.com/ajax/libs/webfont/1/webfont.js';
+            wf.type = 'text/javascript';
+            wf.async = 'true';
+            var s = document.getElementsByTagName('script')[0];
+            s.parentNode.insertBefore(wf, s);
+        })();
     </script>
 </div>
 </body>
